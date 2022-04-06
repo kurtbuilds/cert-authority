@@ -5,7 +5,7 @@ import path from 'path'
 import http_proxy from 'http-proxy'
 import http from 'http'
 import https from 'https'
-import {spawn} from 'child_process'
+import {spawn as spawn_sync} from 'child_process'
 
 const HTTPS = Boolean(process.env.HTTPS)
 const PORT = process.env.PORT ?
@@ -36,13 +36,13 @@ function template_file(path: string, filename: string): string {
 }
 
 
-async function spawn_async(cmd: string, args: string[]): Promise<{
+async function spawn(cmd: string, args: string[]): Promise<{
     stdout: string,
     stderr: string,
     code: number
 }> {
     return new Promise((resolve, reject) => {
-        const child = spawn(cmd, args)
+        const child = spawn_sync(cmd, args)
         let out_buf: string[] = []
         let err_buf: string[] = []
         child.stdout.on('data', data => out_buf.push(data))
@@ -70,7 +70,7 @@ async function main() {
     let program = new Command()
     program.addHelpText('after', `
 Environment variables:
-HTTPS: Server on HTTPS (values: true)
+HTTPS: Serve on HTTPS (values: true)
 PORT: Port to run on (default: 8000 if http, 8443 if https)
 SSL_CRT_FILE: Path to .crt file. Only used if HTTPS (value: filepath)
 SSL_KEY_FILE: Path to .key file. Only used if HTTPS (value: filepath)
@@ -78,15 +78,25 @@ PROXY: Use a proxy server instead of file system. (Value: full URL for proxy tar
 `)
     program.option('-s, --secure', 'Serve on HTTPS')
     program.argument('[proxy]')
-    let parsed = program.parse() as any
+    let parsed = program.parse()
+    let opts = parsed.opts()
 
-    let proxy = parsed.proxy || PROXY
-    let secure = parsed.secure || HTTPS
+    let proxy = (parsed.args.length ? parsed.args[0] : undefined) || PROXY
+    let secure = opts.secure || HTTPS
 
     // create proxy or create fs server
     let handler
     if (proxy) {
-        handler = http_proxy.createProxyServer({target: proxy!})
+        if (!proxy.startsWith('http')) {
+            proxy = 'http://' + proxy
+        }
+        console.log('proxy', proxy)
+        let proxy_server = http_proxy.createProxyServer({target: proxy!})
+        handler = function (req: Request, res: Response) {
+            proxy_server.web(req, res, {
+                target: proxy
+            })
+        }
     } else {
         handler = express()
         handler.get('*', (req: Request, res: Response) => {
@@ -137,7 +147,7 @@ PROXY: Use a proxy server instead of file system. (Value: full URL for proxy tar
     let host = ''
     if (secure) {
         schema = 'https'
-        let {stdout} = await spawn_async('openssl', ['x509', '-text', '-noout', '-in', SSL_CRT_FILE]);
+        let {stdout} = await spawn('openssl', ['x509', '-text', '-noout', '-in', SSL_CRT_FILE]);
         let match = /DNS:([a-zA-Z0-9.]+)\s/.exec(stdout)
         if (match) host = match[1]
     }

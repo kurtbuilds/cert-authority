@@ -1,5 +1,9 @@
+set dotenv-load := true
 export HOSTNAME:="local.kurtbuilds.com"
 
+#################
+## Certificate ##
+#################
 help:
   @just --list --unsorted
 
@@ -38,3 +42,26 @@ config:
     DNS.1 = $HOSTNAME
     EOF
 
+#################
+## Node Server ##
+#################
+
+export PATH := "./node_modules/.bin:" + env_var('PATH')
+
+run:
+    watchexec -e ts -r -- node --trace-warnings --unhandled-rejections=strict -r esbuild-register src/main.ts
+alias r := run
+
+release:
+    esbuild --platform=node src/main.ts --bundle --outfile=build/index.js
+
+@install: release
+    echo "#!/usr/bin/env node" > /usr/local/bin/http
+    cat build/index.js >> /usr/local/bin/http
+    chmod +x /usr/local/bin/http
+
+    echo "#!/bin/sh" > /usr/local/bin/https
+    echo "HTTPS=true http \"$""@\"" >> /usr/local/bin/https
+    chmod +x /usr/local/bin/https
+    echo Installed to /usr/local/bin/http
+    echo Installed to /usr/local/bin/https
