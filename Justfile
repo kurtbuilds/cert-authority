@@ -7,6 +7,9 @@ export HOSTNAME:="local.kurtbuilds.com"
 help:
   @just --list --unsorted
 
+bootstrap:
+    pnpm install
+
 # Create root certificate
 root:
     # Provide 1234 as a password.
@@ -56,12 +59,12 @@ release:
     esbuild --platform=node src/main.ts --bundle --outfile=build/index.js
 
 @install: release
-    echo "#!/usr/bin/env node" > /usr/local/bin/http
-    cat build/index.js >> /usr/local/bin/http
-    chmod +x /usr/local/bin/http
+    echo "#!/usr/bin/env node" | sudo tee /usr/local/bin/http
+    cat build/index.js | sudo tee -a /usr/local/bin/http
+    sudo chmod +x /usr/local/bin/http
 
-    echo "#!/bin/sh" > /usr/local/bin/https
-    echo "HTTPS=true http \"$""@\"" >> /usr/local/bin/https
-    chmod +x /usr/local/bin/https
+    echo "#!/bin/sh" | sudo tee /usr/local/bin/https
+    echo "HTTPS=true http \"$""@\"" | sudo tee -a /usr/local/bin/https
+    sudo chmod +x /usr/local/bin/https
     echo Installed to /usr/local/bin/http
     echo Installed to /usr/local/bin/https
