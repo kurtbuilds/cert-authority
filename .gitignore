@@ -1,0 +1,8 @@
+build/
+cert/
+*.key
+*.pem
+*.srl
+*.crt
+*.csr
+*.ext
